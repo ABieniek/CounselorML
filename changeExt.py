@@ -18,4 +18,4 @@ directory = sys.argv[3]
 for filename in os.listdir(directory):
     if (filename.find(newext) == -1 and filename.find(oldext) != -1):
         extidx =  filename.find(oldext)
-        os.rename(filename, filename[0:extidx] + newext)
+        os.rename(directory + '/' + filename, directory + '/' + filename[0:extidx] + newext)
