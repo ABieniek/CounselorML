@@ -16,3 +16,10 @@ def calcRowAverage(sheet, rownum):
             sumgrade +=  sheet.cell(rownum, j).value \
             * gradeVals[sheet.cell(0, j).value]     # increase total score, weighted by grade value
     return sumgrade / count
+
+def calcRowCount(sheet, rownum):
+    count = 0
+    for j in range(sheet.ncols):
+        if (sheet.cell(0, j).value in gradeVals):
+            count += sheet.cell(rownum, j).value    # increase number of students counted
+    return count
