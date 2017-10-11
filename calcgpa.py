@@ -1,6 +1,8 @@
 import sys
 import os
 from xlrd import open_workbook
+from xlutils.copy import copy
+from xlwt import easyxf
 
 def printusage():
     print "usage: python ./wow directory"
@@ -28,21 +30,35 @@ if len(sys.argv) != 1:
     directory = sys.argv[1]
 
 def calcRowAverage(sheet, rownum):
-    return True
+    count = 0
+    sumgrade = 0
+
+    for j in range(sheet.ncols):
+        if (sheet.cell(0, j).value in gradeVals):
+            count += sheet.cell(rownum, j).value
+            sumgrade +=  sheet.cell(rownum, j).value \
+            * gradeVals[sheet.cell(0, j).value]
+    return sumgrade / count
+
+def pushCols(readsheet, writesheet, startidx, dist):
+    ncols = readsheet.ncols
+    # write new values to the columns some distance away
+    for j in xrange(ncols, startidx, -1):
+        for i in range(readsheet.nrows):
+            print j + dist
+            writesheet.write(i, j+dist, readsheet.cell(i, j))
+    # clear the columns that got copied and not overwritten
+    for j in range(startidx, distance):
+        for i in range(readsheet.nrows):
+            writesheet.write(i, j, "")
 
 for filename in os.listdir(directory):
     if (isExt(filename, [".xls", ".xlsx"]) == False):
         continue
-    wb = open_workbook(directory + '/' + filename)
-    sheet = wb.sheet_by_index(0)
-    for i in range(1, sheet.nrows):
-        sumgrade = 0
-        count = 0
-        for j in range(sheet.ncols):
-            # if the column header we're looking at has a letter grade \
-            # this column contains numbers of students with that score
-            if (sheet.cell(0, j).value in gradeVals):
-                count += sheet.cell(i, j).value
-                sumgrade +=  sheet.cell(i, j).value \
-                * gradeVals[sheet.cell(0, j).value]
-        print (sumgrade / count)
+    rb = open_workbook(directory + '/' + filename)
+    r_sheet = rb.sheet_by_index(0)
+    wb = copy(rb)
+    w_sheet = wb.get_sheet(0)
+    pushCols(r_sheet, w_sheet, 5, 1)
+    cb = copy(wb)
+    cb.save(directory + '/temp' + filename)
