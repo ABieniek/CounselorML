@@ -32,11 +32,11 @@ headers = ["Term", "Subject","Course", "CRN", "Course Title", "Total Grades", \
     "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-",\
     "D+", "D", "D-", "F", "W", "Average Grade", "Primary Instructor"]
 
+# write "" to every populated cell in a sheet
 def clearsheet(writesheet, nrows, ncols):
     for i in xrange(nrows, -1, -1):
         for j in xrange(ncols, -1, -1):
             writesheet.write(i, j, "")
-    print "done clearing"
 
 def pushCols(readsheet, writesheet, startcol, dist):
     # copy current columns up to the column before startcol
@@ -46,6 +46,7 @@ def pushCols(readsheet, writesheet, startcol, dist):
     for colnum in range(startcol):
         for rownum in range(readsheet.nrows):
             writesheet.write(rownum, colnum, readsheet.cell(rownum, colnum).value)
+    # once we hit startcol, write all of the columns in startcol some distance ahead
     for colnum in range(startcol, readsheet.ncols):
         for rownum in range(readsheet.nrows):
             writesheet.write(rownum, colnum+dist, readsheet.cell(rownum, colnum).value)
@@ -55,21 +56,41 @@ def spacecols(readsheet, writesheet):
     for headnum in range(len(headers)):
         headertitle = readsheet.cell(0, readcol).value.encode('ascii','ignore')
         if headers[headnum] in headertitle:
-            for rownum in range(readsheet.nrows):
+            writesheet.write(0, headnum, headers[headnum])
+            writerow = 1
+            for rownum in range(1, readsheet.nrows):
                 writesheet.write(rownum, headnum, readsheet.cell(rownum, readcol).value)
+                writerow+=1
             readcol += 1
         else:
             writesheet.write(0, headnum, headers[headnum])
 
+def fillcols(readsheet, writesheet):
+    for rownum in range(1, readsheet.nrows):
+        for colnum in range(readsheet.ncols):
+            if readsheet.cell(0, colnum).value == "Total Grades":
+                writesheet.write(rownum, colnum, gpamath.calcrowcount(readsheet, rownum))
+            elif readsheet.cell(0, colnum).value == "Average Grade":
+                writesheet.write(rownum, colnum, gpamath.calcrowaverage(readsheet, rownum))
 
 for filename in os.listdir(directory):
     if (isExt(filename, [".xls", ".xlsx"]) == False):
         continue
+    print "rewriting ", directory, '/', filename
+    #  make a temp file that has the desired format
     rb = open_workbook(directory + '/' + filename)
     r_sheet = rb.sheet_by_index(0)
     wb = copy(rb)
     w_sheet = wb.get_sheet(0)
     clearsheet(w_sheet, r_sheet.nrows, r_sheet.ncols)
     spacecols(r_sheet, w_sheet)
-    #cb = copy(wb)
     wb.save(directory + '/temp' + filename)
+    # read in the temp file and fill the desired columns to overwrite the original file
+    rb = open_workbook(directory + '/temp' + filename)
+    r_sheet = rb.sheet_by_index(0)
+    wb = copy(rb)
+    w_sheet = wb.get_sheet(0)
+    fillcols(r_sheet, w_sheet)
+    wb.save(directory + '/' + filename)
+    # remove temp file
+    os.remove(directory + '/temp' + filename)
