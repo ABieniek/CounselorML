@@ -38,7 +38,7 @@ def clearsheet(writesheet, nrows, ncols):
         for j in xrange(ncols, -1, -1):
             writesheet.write(i, j, "")
 
-def pushCols(readsheet, writesheet, startcol, dist):
+def pushcols(readsheet, writesheet, startcol, dist):
     # copy current columns up to the column before startcol
     if startcol >= readsheet.nrows:
         print "starting column is not in range!"
@@ -57,15 +57,34 @@ def spacecols(readsheet, writesheet):
         headertitle = readsheet.cell(0, readcol).value.encode('ascii','ignore')
         if headers[headnum] in headertitle:
             writesheet.write(0, headnum, headers[headnum])
-            writerow = 1
             for rownum in range(1, readsheet.nrows):
                 writesheet.write(rownum, headnum, readsheet.cell(rownum, readcol).value)
-                writerow+=1
             readcol += 1
         else:
             writesheet.write(0, headnum, headers[headnum])
 
-def fillcols(readsheet, writesheet):
+def stripbadrows(readsheet, writesheet):
+    writerow = 0
+    for rownum in range(readsheet.nrows):
+        # check if our row is garbage
+        skip = False
+        for colnum in range(readsheet.ncols):
+            if readsheet.cell(rownum, colnum).value == "N/A":
+                skip = True
+                break
+        if skip == False:
+            for colnum in range(readsheet.ncols):
+                writesheet.write(writerow, colnum, readsheet.cell(rownum, colnum).value)
+            writerow+=1
+
+def fillgrades(readsheet, writesheet):
+    for rownum in range(1, readsheet.nrows):
+        for colnum in range(readsheet.ncols):
+            if readsheet.cell(0, colnum).value in headers[headers.index("A+"):headers.index("Average Grade")]:
+                if readsheet.cell(rownum, colnum).value == "":
+                    writesheet.write(rownum, colnum, 0)
+
+def fillaverages(readsheet, writesheet):
     for rownum in range(1, readsheet.nrows):
         for colnum in range(readsheet.ncols):
             if readsheet.cell(0, colnum).value == "Total Grades":
@@ -84,13 +103,25 @@ for filename in os.listdir(directory):
     w_sheet = wb.get_sheet(0)
     clearsheet(w_sheet, r_sheet.nrows, r_sheet.ncols)
     spacecols(r_sheet, w_sheet)
-    wb.save(directory + '/temp' + filename)
-    # read in the temp file and fill the desired columns to overwrite the original file
-    rb = open_workbook(directory + '/temp' + filename)
+    wb.save(directory + '/' + filename)
+    # strip bad rows
+    rb = open_workbook(directory + '/' + filename)
     r_sheet = rb.sheet_by_index(0)
     wb = copy(rb)
     w_sheet = wb.get_sheet(0)
-    fillcols(r_sheet, w_sheet)
+    stripbadrows(r_sheet, w_sheet)
     wb.save(directory + '/' + filename)
-    # remove temp file
-    os.remove(directory + '/temp' + filename)
+    # first fill, fill empty letter grade columns
+    rb = open_workbook(directory + '/' + filename)
+    r_sheet = rb.sheet_by_index(0)
+    wb = copy(rb)
+    w_sheet = wb.get_sheet(0)
+    fillgrades(r_sheet, w_sheet)
+    wb.save(directory + '/' + filename)
+    # second fill, now I have all values to calculate GPA with
+    rb = open_workbook(directory + '/' + filename)
+    r_sheet = rb.sheet_by_index(0)
+    wb = copy(rb)
+    w_sheet = wb.get_sheet(0)
+    fillaverages(r_sheet, w_sheet)
+    wb.save(directory + '/' + filename)
