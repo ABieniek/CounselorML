@@ -8,7 +8,7 @@ from xlwt import easyxf
 import gpamath
 
 def printusage():
-    print "usage: python ./wow directory"
+    print "usage: python ./xlsmod directory"
 
 # return true if the given filename has one of the extensions in the list
 def isExt(filename, extList):
@@ -19,37 +19,65 @@ def isExt(filename, extList):
             return True
     return False
 
-# check arguments
-if len(sys.argv) > 2:
-    printusage()
-    sys.exit()
-directory = "."
-if len(sys.argv) != 1:
-    directory = sys.argv[1]
-
 # also includes term header before the rest in one year, but I'll omit that
 headers = ["Term", "Subject","Course", "CRN", "Course Title", "Total Grades", \
     "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-",\
     "D+", "D", "D-", "F", "W", "Average Grade", "Primary Instructor"]
+
+# http://pythoncentral.io/how-to-check-if-a-string-is-a-number-in-python-including-unicode/
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        pass
+    try:
+        import unicodedata
+        unicodedata.numeric(s)
+        return True
+    except (TypeError, ValueError):
+        pass
+
+# searches through str and tries to find a possible year number of length n
+def guessyear(str, n):
+    strtemp = ""
+    strings = []
+    consec = 0
+    for c in str:
+        if (is_number(c)):
+            strtemp += c
+            consec+=1
+        else:
+            if (consec == n):
+                strings.append(strtemp)
+            strtemp = ""
+            consec = 0
+    if (consec == n):
+        strings.append(strtemp)
+    for s in strings:
+        if int(s) in range(1900, 3000):
+            return int(s)
+    return 0
+
+def guessseason(filename):
+    if "FALL" in filename.upper(): return "FALL"
+    elif "WINTER" in filename.upper(): return "WINTER"
+    elif "SPRING" in filename.upper(): return "SPRING"
+    elif "SUMMER" in filename.upper(): return "SUMMER"
+    return ""
+
+def guessterm(filename):
+    season = guessseason(filename)
+    if (season == ""): print "no season found in filename!"
+    year = guessyear(filename, 4)
+    if (year == 0): print "no year found in filename!"
+    return season, year
 
 # write "" to every populated cell in a sheet
 def clearsheet(writesheet, nrows, ncols):
     for i in xrange(nrows, -1, -1):
         for j in xrange(ncols, -1, -1):
             writesheet.write(i, j, "")
-
-def pushcols(readsheet, writesheet, startcol, dist):
-    # copy current columns up to the column before startcol
-    if startcol >= readsheet.nrows:
-        print "starting column is not in range!"
-        return None
-    for colnum in range(startcol):
-        for rownum in range(readsheet.nrows):
-            writesheet.write(rownum, colnum, readsheet.cell(rownum, colnum).value)
-    # once we hit startcol, write all of the columns in startcol some distance ahead
-    for colnum in range(startcol, readsheet.ncols):
-        for rownum in range(readsheet.nrows):
-            writesheet.write(rownum, colnum+dist, readsheet.cell(rownum, colnum).value)
 
 def spacecols(readsheet, writesheet):
     readcol = 0
@@ -77,6 +105,14 @@ def stripbadrows(readsheet, writesheet):
                 writesheet.write(writerow, colnum, readsheet.cell(rownum, colnum).value)
             writerow+=1
 
+def fillterms(readsheet, writesheet, filename):
+    for rownum in range(1, readsheet.nrows):
+        for colnum in range(readsheet.ncols):
+            if readsheet.cell(0, colnum).value == "Term":
+                season, year = guessterm(filename)
+                writesheet.write(rownum, colnum, season + " " + str(year))
+
+
 def fillgrades(readsheet, writesheet):
     for rownum in range(1, readsheet.nrows):
         for colnum in range(readsheet.ncols):
@@ -92,36 +128,50 @@ def fillaverages(readsheet, writesheet):
             elif readsheet.cell(0, colnum).value == "Average Grade":
                 writesheet.write(rownum, colnum, gpamath.calcrowaverage(readsheet, rownum))
 
-for filename in os.listdir(directory):
-    if (isExt(filename, [".xls", ".xlsx"]) == False):
-        continue
-    print "rewriting ", directory, '/', filename
-    #  make a temp file that has the desired format
-    rb = open_workbook(directory + '/' + filename)
-    r_sheet = rb.sheet_by_index(0)
-    wb = copy(rb)
-    w_sheet = wb.get_sheet(0)
-    clearsheet(w_sheet, r_sheet.nrows, r_sheet.ncols)
-    spacecols(r_sheet, w_sheet)
-    wb.save(directory + '/' + filename)
-    # strip bad rows
-    rb = open_workbook(directory + '/' + filename)
-    r_sheet = rb.sheet_by_index(0)
-    wb = copy(rb)
-    w_sheet = wb.get_sheet(0)
-    stripbadrows(r_sheet, w_sheet)
-    wb.save(directory + '/' + filename)
-    # first fill, fill empty letter grade columns
-    rb = open_workbook(directory + '/' + filename)
-    r_sheet = rb.sheet_by_index(0)
-    wb = copy(rb)
-    w_sheet = wb.get_sheet(0)
-    fillgrades(r_sheet, w_sheet)
-    wb.save(directory + '/' + filename)
-    # second fill, now I have all values to calculate GPA with
-    rb = open_workbook(directory + '/' + filename)
-    r_sheet = rb.sheet_by_index(0)
-    wb = copy(rb)
-    w_sheet = wb.get_sheet(0)
-    fillaverages(r_sheet, w_sheet)
-    wb.save(directory + '/' + filename)
+def main():
+    # check arguments
+    if len(sys.argv) != 2:
+        printusage()
+        sys.exit()
+    directory = sys.argv[1]
+    if not os.path.isdir(directory):
+        printusage()
+        sys.exit()
+
+    for filename in os.listdir(directory):
+        if (isExt(filename, [".xls", ".xlsx"]) == False):
+            continue
+        print "rewriting ", directory, '/', filename
+        #  make a temp file that has the desired format
+        rb = open_workbook(directory + '/' + filename)
+        r_sheet = rb.sheet_by_index(0)
+        wb = copy(rb)
+        w_sheet = wb.get_sheet(0)
+        clearsheet(w_sheet, r_sheet.nrows, r_sheet.ncols)
+        spacecols(r_sheet, w_sheet)
+        wb.save(directory + '/' + filename)
+        # strip bad rows
+        rb = open_workbook(directory + '/' + filename)
+        r_sheet = rb.sheet_by_index(0)
+        wb = copy(rb)
+        w_sheet = wb.get_sheet(0)
+        stripbadrows(r_sheet, w_sheet)
+        wb.save(directory + '/' + filename)
+        # first fill, fill empty letter grade columns and terms
+        rb = open_workbook(directory + '/' + filename)
+        r_sheet = rb.sheet_by_index(0)
+        wb = copy(rb)
+        w_sheet = wb.get_sheet(0)
+        fillgrades(r_sheet, w_sheet)
+        fillterms(r_sheet, w_sheet, filename)
+        wb.save(directory + '/' + filename)
+        # second fill, now I have all values to calculate GPA with
+        rb = open_workbook(directory + '/' + filename)
+        r_sheet = rb.sheet_by_index(0)
+        wb = copy(rb)
+        w_sheet = wb.get_sheet(0)
+        fillaverages(r_sheet, w_sheet)
+        wb.save(directory + '/' + filename)
+
+if __name__ == '__main__':
+    main()
