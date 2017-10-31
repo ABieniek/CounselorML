@@ -141,7 +141,7 @@ def main():
     for filename in os.listdir(directory):
         if (isExt(filename, [".xls", ".xlsx"]) == False):
             continue
-        print "rewriting ", directory, '/', filename
+        print "rewriting ", directory + '/' + filename
         #  make a temp file that has the desired format
         rb = open_workbook(directory + '/' + filename)
         r_sheet = rb.sheet_by_index(0)
